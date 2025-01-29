@@ -48,6 +48,7 @@ resource "aws_launch_template" "this" {
   key_name               = aws_key_pair.this.key_name
   vpc_security_group_ids = [aws_security_group.allow_http.id]
   block_device_mappings {
+    device_name = "/dev/sda1"
     ebs {
       delete_on_termination = true
       encrypted             = true
