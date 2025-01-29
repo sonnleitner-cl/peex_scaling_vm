@@ -22,6 +22,7 @@ locals {
     Subproyecto = var.Subproyecto
     FlowLog     = var.FlowLog
   }
+  key = var.key
 }
 variable "FlowLog" {
   default = "ALL"
@@ -33,4 +34,9 @@ variable "subnet_numbers" {
     us-west-2b = 2
     us-west-2c = 3
   }
+}
+variable "key" {
+  description = "Public SSH Key's path."
+  type        = string
+  default     = "~/.ssh/id_ed25519.pub"
 }
