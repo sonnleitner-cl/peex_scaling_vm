@@ -23,7 +23,9 @@ resource "aws_instance" "bastion" {
     id      = aws_launch_template.this.id
     version = "$Latest"
   }
-
+  root_block_device {
+    encrypted = true
+  }
   subnet_id = aws_subnet.public["us-west-2a"].id
   tags = {
     Name = "bastion"
@@ -45,6 +47,13 @@ resource "aws_launch_template" "this" {
   user_data              = filebase64("${path.module}/user-data.sh")
   key_name               = aws_key_pair.this.key_name
   vpc_security_group_ids = [aws_security_group.allow_http.id]
+  block_device_mappings {
+    ebs {
+      delete_on_termination = true
+      encrypted             = true
+    }
+  }
+
   monitoring {
     enabled = true
   }
