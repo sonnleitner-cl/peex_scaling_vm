@@ -18,6 +18,7 @@ resource "aws_launch_template" "this" {
   name_prefix   = "this"
   image_id      = data.aws_ami.ubuntu.id
   instance_type = "t2.micro"
+  user_data     = filebase64("${path.module}/user-data.sh")
   metadata_options {
     http_tokens = "required"
   }
@@ -29,6 +30,7 @@ resource "aws_autoscaling_group" "this" {
   min_size            = 1
   vpc_zone_identifier = [aws_subnet.app["us-west-2a"].id, aws_subnet.app["us-west-2b"].id, aws_subnet.app["us-west-2c"].id]
 
+  health_check_type = "ELB"
   launch_template {
     id      = aws_launch_template.this.id
     version = "$Latest"
@@ -94,11 +96,10 @@ resource "aws_lb_listener" "this" {
 }
 
 resource "aws_lb_target_group" "this" {
-  name        = "tf-example-lb-alb-tg"
-  target_type = "alb"
-  port        = 80
-  protocol    = "TCP"
-  vpc_id      = aws_vpc.main.id
+  name     = "tf-example-lb-alb-tg"
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.main.id
 }
 
 resource "aws_autoscaling_attachment" "this" {
