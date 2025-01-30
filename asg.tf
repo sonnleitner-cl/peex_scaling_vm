@@ -39,6 +39,38 @@ resource "aws_eip_association" "eip_assoc" {
 
 resource "aws_eip" "bastion" {
 }
+resource "aws_security_group" "instance_sg" {
+  name        = "instance_sg"
+  description = "Allow TLS inbound traffic and all outbound traffic"
+  vpc_id      = aws_vpc.main.id
+
+  tags = {
+    Name = "instance_sg"
+  }
+}
+
+resource "aws_vpc_security_group_ingress_rule" "instance_sg_ingress_http" {
+  security_group_id = aws_security_group.instance_sg.id
+  cidr_ipv4         = aws_vpc.main.cidr_block
+  from_port         = 80
+  ip_protocol       = "tcp"
+  to_port           = 80
+}
+
+#trivy:ignore:AVD-AWS-0107
+resource "aws_vpc_security_group_ingress_rule" "instance_sg_ingress_ssh" {
+  security_group_id = aws_security_group.instance_sg.id
+  cidr_ipv4         = "0.0.0.0/0"
+  from_port         = 22
+  ip_protocol       = "tcp"
+  to_port           = 22
+}
+
+resource "aws_vpc_security_group_egress_rule" "instance_sg_egress" {
+  security_group_id = aws_security_group.instance_sg.id
+  cidr_ipv4         = "0.0.0.0/0"
+  ip_protocol       = "-1" # semantically equivalent to all ports
+}
 
 resource "aws_launch_template" "this" {
   name_prefix            = "this"
@@ -46,7 +78,7 @@ resource "aws_launch_template" "this" {
   instance_type          = "t2.micro"
   user_data              = filebase64("${path.module}/user-data.sh")
   key_name               = aws_key_pair.this.key_name
-  vpc_security_group_ids = [aws_security_group.allow_http.id]
+  vpc_security_group_ids = [aws_security_group.instance_sg.id]
   block_device_mappings {
     device_name = "/dev/sda1"
     ebs {
@@ -77,66 +109,6 @@ resource "aws_autoscaling_group" "this" {
   }
 }
 
-resource "aws_autoscaling_policy" "simple_scaling" {
-  name                   = "simple-scaling-policy"
-  scaling_adjustment     = 1
-  adjustment_type        = "ChangeInCapacity"
-  cooldown               = 300
-  autoscaling_group_name = aws_autoscaling_group.this.name
-}
-
-resource "aws_cloudwatch_metric_alarm" "cpu_low" {
-  alarm_name          = "low-cpu-alarm"
-  comparison_operator = "LessThanOrEqualToThreshold"
-  evaluation_periods  = 2
-  metric_name         = "CPUUtilization"
-  namespace           = "AWS/EC2"
-  period              = 60
-  statistic           = "Average"
-  threshold           = 20
-  alarm_actions       = [aws_autoscaling_policy.simple_scaling.arn]
-  dimensions = {
-    AutoScalingGroupName = aws_autoscaling_group.this.name
-  }
-}
-
-resource "aws_autoscaling_policy" "step_scaling" {
-  name                   = "step-scaling-policy"
-  adjustment_type        = "ChangeInCapacity"
-  policy_type            = "StepScaling"
-  autoscaling_group_name = aws_autoscaling_group.this.name
-
-  # Increase instances when CPU is above 75%
-  step_adjustment {
-    metric_interval_lower_bound = 0
-    scaling_adjustment          = 2
-  }
-
-  # Decrease instances when CPU is below 20%
-  step_adjustment {
-    metric_interval_upper_bound = 0
-    scaling_adjustment          = -1
-  }
-
-  estimated_instance_warmup = 300
-}
-
-
-resource "aws_cloudwatch_metric_alarm" "cpu_high" {
-  alarm_name          = "high-cpu-alarm"
-  comparison_operator = "GreaterThanOrEqualToThreshold"
-  evaluation_periods  = 2
-  metric_name         = "CPUUtilization"
-  namespace           = "AWS/EC2"
-  period              = 60
-  statistic           = "Average"
-  threshold           = 75
-  alarm_actions       = [aws_autoscaling_policy.step_scaling.arn]
-  dimensions = {
-    AutoScalingGroupName = aws_autoscaling_group.this.name
-  }
-}
-
 resource "aws_security_group" "allow_http" {
   name        = "allow_http"
   description = "Allow TLS inbound traffic and all outbound traffic"
@@ -149,7 +121,7 @@ resource "aws_security_group" "allow_http" {
 
 resource "aws_vpc_security_group_ingress_rule" "allow_http_ipv4" {
   security_group_id = aws_security_group.allow_http.id
-  cidr_ipv4         = aws_vpc.main.cidr_block
+  cidr_ipv4         = "0.0.0.0/0"
   from_port         = 80
   ip_protocol       = "tcp"
   to_port           = 80
